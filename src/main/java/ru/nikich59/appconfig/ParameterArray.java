@@ -10,5 +10,5 @@ import java.lang.annotation.Target;
 public @interface ParameterArray
 {
 	String name( );
-	Class parameterClass( );
+	Class componentClass( );
 }

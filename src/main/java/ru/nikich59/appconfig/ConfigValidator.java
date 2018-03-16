@@ -10,7 +10,7 @@ public class ConfigValidator
 	public boolean isConfigValid( Class configClass )
 			throws ConfigValidationException
 	{
-		if ( ! configClass.isAnnotationPresent( ConfigObject.class ) )
+		if ( ! configClass.isAnnotationPresent( Config.class ) )
 		{
 			throw new ConfigValidationException( ConfigValidationException.Reason.AnnotationNotPresent,
 					"Config object: " + configClass.toString( ) + " is not annotated properly" );
@@ -48,10 +48,10 @@ public class ConfigValidator
 					"Field: \'" + field.getName( ) + "\' is marked as parameter array but is not an array" );
 		}
 
-		Class requiredParameterArrayComponentType = parameterArray.parameterClass( );
+		Class requiredParameterArrayComponentType = parameterArray.componentClass( );
 		Class actualParameterArrayComponentType = field.getType( ).getComponentType( );
 
-		if ( ! parameterArray.parameterClass( ).equals( field.getType( ).getComponentType( ) ) )
+		if ( ! parameterArray.componentClass( ).equals( field.getType( ).getComponentType( ) ) )
 		{
 			throw new ConfigValidationException( ConfigValidationException.Reason.ParameterArrayTypeNotMatch,
 					"Parameter array component type required: \'" + requiredParameterArrayComponentType.toString( ) +

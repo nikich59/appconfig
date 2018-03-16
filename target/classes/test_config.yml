@@ -1,0 +1,17 @@
+int : 45
+long : 56773433
+string: string string string
+float: 54323.2
+nested:
+  name: "nested name"
+  value: "nested value"
+nested_array:
+  - name: "nested array name 1"
+    value: "nested array value 1"
+  - name: "nested array name 2"
+    value: "nested array value 2"
+string_array:
+  - "first_string"
+  - "second string"
+class: java.util.ArrayList
+nested_file: test_config_nested.yml

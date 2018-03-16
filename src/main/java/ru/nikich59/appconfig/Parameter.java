@@ -5,10 +5,20 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Target( ElementType.FIELD )
-@Retention( RetentionPolicy.RUNTIME )
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface Parameter
 {
-	String name( );
-	boolean nested( ) default false;
+	enum NestedSource
+	{
+		None,
+		Internal,
+		File
+	}
+
+	String name();
+
+	NestedSource nested() default NestedSource.None;
+
+	Class superClass() default Object.class;
 }

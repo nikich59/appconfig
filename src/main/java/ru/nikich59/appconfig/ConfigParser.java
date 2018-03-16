@@ -1,274 +1,140 @@
 package ru.nikich59.appconfig;
 
-import java.beans.IntrospectionException;
-import java.beans.PropertyDescriptor;
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
+import com.google.common.io.CharStreams;
+import org.apache.commons.io.FilenameUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+import org.yaml.snakeyaml.Yaml;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.Map;
 
 /**
- * Created by Nikita on 26.02.2018.
+ * Created by prokoshev.n on 27.02.2018.
  */
 public class ConfigParser
 {
-	public Object parseMap( Class configClass, Map < String, Object > configObjectMap )
-			throws ConfigParseException, ConfigValidationException
+	public enum ConfigFormat
 	{
-		ConfigValidator configValidator = new ConfigValidator( );
-		if ( ! configValidator.isConfigValid( configClass ) )
-		{
-			throw new ConfigParseException( ConfigParseException.Reason.ValidationException );
-		}
-
-		return parseMapAfterValidation( configClass, configObjectMap );
+		JSON,
+		YAML
 	}
 
-	private Object parseMapAfterValidation( Class configClass, Map < String, Object > configObjectMap )
-			throws ConfigParseException
+	private ConfigMapParser configMapParser;
+
+	public ConfigParser( )
 	{
-		Object configObject;
-
-		try
-		{
-			configObject = configClass.newInstance( );
-		}
-		catch ( InstantiationException | IllegalAccessException e )
-		{
-			throw new ConfigParseException( ConfigParseException.Reason.InstantiationException, e );
-		}
-
-		for ( Field field : configClass.getDeclaredFields( ) )
-		{
-			parseField( field, configObject, configObjectMap );
-		}
-
-		return configObject;
+		configMapParser = new ConfigMapParser( this );
 	}
 
-	private void parseField( Field field, Object configObject, Map < String, Object > configObjectMap )
-			throws ConfigParseException
+	public ConfigParser( ClassLoader classLoader )
 	{
-		if ( field.isAnnotationPresent( Parameter.class ) )
-		{
-			parseParameter( field, configObject, configObjectMap );
-		}
-		else
-		{
-			parseParameterArray( field, configObject, configObjectMap );
-		}
+		configMapParser = new ConfigMapParser( this, classLoader );
 	}
 
-	private void parseParameter( Field field, Object configObject, Map < String, Object > configObjectMap )
-			throws ConfigParseException
+	public void addClassLoader( ClassLoader classLoader )
 	{
-		boolean isFieldRequired = isRequired( field, configObjectMap );
-
-		setParameter( field, configObject, configObjectMap, isFieldRequired );
+		configMapParser.addClassLoader( classLoader );
 	}
 
-	private void parseParameterArray( Field field, Object configObject, Map < String, Object > configObjectMap )
-			throws ConfigParseException
+	public Object parseMap( Class configClass, Map < String, Object > map )
+			throws ConfigValidationException, ConfigParseException
 	{
-		boolean isFieldRequired = isRequired( field, configObjectMap );
-
-		ParameterArray parameterArrayInfo = field.getAnnotation( ParameterArray.class );
-
-		setParameterArray(
-				field,
-				parameterArrayInfo.name( ),
-				configObject,
-				configObjectMap,
-				isFieldRequired,
-				parameterArrayInfo.parameterClass( ) );
+		return parseMap( configClass, map, null );
 	}
 
-	private boolean isRequired(
-			Field field,
-			Map < String, Object > configObjectMap )
-			throws ConfigParseException
+	Object parseMap( Class configClass, Map < String, Object > map, Object parent )
+			throws ConfigValidationException, ConfigParseException
 	{
-		if ( ! field.isAnnotationPresent( Required.class ) )
+		return configMapParser.parseMap( configClass, map, parent );
+	}
+
+	public Object parseFile( Class configClass, File file )
+			throws IOException, ConfigValidationException, ConfigParseException
+	{
+		return parseFile( configClass, file, null );
+	}
+
+	Object parseFile( Class configClass, File file, Object parent )
+			throws IOException, ConfigValidationException, ConfigParseException
+	{
+		String fileExtension = FilenameUtils.getExtension( file.getAbsolutePath( ) );
+
+		try ( FileReader fileReader = new FileReader( file ) )
 		{
-			return false;
-		}
-
-		Required requiredInfo = field.getAnnotation( Required.class );
-
-		for ( RequiredField requiredField : requiredInfo.fields( ) )
-		{
-			Object requiredFieldValue = configObjectMap.get( requiredField.name( ) );
-
-			if ( requiredFieldValue == null )
+			switch ( fileExtension )
 			{
-				return false;
-				/*
-				throw new ConfigParseException( ConfigParseException.Reason.RequiredFieldNotPresent,
-						"Field: \'" + field.getName( ) + "\' is required but not provided" );*/
+				case "yml":
+				case "yaml":
+					return parseConfig( configClass, fileReader, ConfigFormat.YAML, parent );
+				case "json":
+				case "js":
+					return parseConfig( configClass, fileReader, ConfigFormat.JSON, parent );
 			}
+		}
 
-			boolean isValueProvided = requiredField.values( ).length == 0;
-			for ( String requiredValue : requiredField.values( ) )
-			{
-				if ( requiredValue.equals( requiredFieldValue.toString( ) ) )
-				{
-					isValueProvided = true;
-				}
-			}
+		throw new UnsupportedOperationException( "File extension: \'" + fileExtension +
+				"\' is not supported" );
+	}
 
-			if ( isValueProvided )
-			{
-				return true;
-/*
-				runIfRequired.run( );
+	Object parseFile( Class configClass, File file, ConfigFormat configFormat, Object parent )
+			throws IOException, ConfigValidationException, ConfigParseException
+	{
+		try ( FileReader fileReader = new FileReader( file ) )
+		{
+			return parseConfig( configClass, fileReader, configFormat, parent );
+		}
+	}
 
+	public Object parseConfig( Class configClass, Reader configReader, ConfigFormat configFormat, Object parent )
+			throws IOException, ConfigParseException, ConfigValidationException
+	{
+		return parseConfig( configClass, CharStreams.toString( configReader ), configFormat, parent );
+	}
+
+	public Object parseConfig( Class configClass, String configString, ConfigFormat configFormat, Object parent )
+			throws ConfigValidationException, ConfigParseException
+	{
+		switch ( configFormat )
+		{
+			case JSON:
 				try
 				{
-					field.set( configObject, requiredFieldValue );
+					return parseConfigJson( configClass, configString, parent );
 				}
-				catch ( IllegalAccessException e )
+				catch ( ParseException e )
 				{
-					throw new ConfigParseException( ConfigParseException.Reason.IllegalAccessException, e );
-				}*/
-			}
+					throw new ConfigParseException( ConfigParseException.Reason.SourceParseException, e );
+				}
+			case YAML:
+				return parseConfigYaml( configClass, configString, parent );
 		}
 
-		return false;
+		throw new UnsupportedOperationException( "Format: \'" + configFormat.toString( ) +
+				"\' is not supported" );
 	}
 
-	private void setParameter(
-			Field field,
-			Object configObject,
-			Map < String, Object > configObjectMap,
-			boolean isRequired )
-			throws ConfigParseException
+	public Object parseConfigJson( Class configClass, String configString, Object parent )
+			throws ParseException, ConfigParseException, ConfigValidationException
 	{
-		Parameter parameter = field.getAnnotation( Parameter.class );
-		String parameterName = parameter.name( );
-		boolean isNested = parameter.nested( );
+		JSONParser jsonParser = new JSONParser( );
 
-		if ( isRequired || configObjectMap.containsKey( parameterName ) )
-		{
-			Object parameterValue = configObjectMap.get( parameterName );
+		JSONObject configJsonObject = ( JSONObject ) jsonParser.parse( configString );
 
-			if ( parameterValue.getClass( ).isArray( ) )
-			{
-				throw new ConfigParseException( ConfigParseException.Reason.FieldTypeException );
-//				setParameterArray( field, parameterValue, configObject, configObjectMap, true );
-			}
-
-			if ( isNested )
-			{
-				setNestedParameter( field, parameterValue, configObject );
-			}
-			else
-			{
-				setFieldValue( configObject, field.getName( ), parameterValue );
-			}
-			/*
-			if ( parameterValue instanceof Map )
-			{
-				setParameterMap( field, parameterValue, configObject, configObjectMap, true );
-			}
-			else
-			{
-				setFieldValue( configObject, field.getName( ), parameterValue );
-			}*/
-		}
+		return configMapParser.parseMap( configClass, configJsonObject, parent );
 	}
 
-	private void setFieldValue( Object configObject, String fieldName, Object fieldValue )
-			throws ConfigParseException
+	public Object parseConfigYaml( Class configClass, String configString, Object parent )
+			throws ConfigParseException, ConfigValidationException
 	{
-		try
-		{
-			PropertyDescriptor propertyDescriptor =
-					new PropertyDescriptor( fieldName, configObject.getClass( ) );
+		Yaml yaml = new Yaml( );
 
-			propertyDescriptor.getWriteMethod( ).invoke( configObject, fieldValue );
-		}
-		catch ( IllegalAccessException | IntrospectionException | InvocationTargetException | IllegalArgumentException e )
-		{
-			throw new ConfigParseException( ConfigParseException.Reason.IllegalAccessException, e );
-		}
-	}
+		Map < String, Object > configYamlObject = yaml.load( configString );
 
-	private void setParameterArray(
-			Field field,
-			String name,
-			Object configObject,
-			Map < String, Object > configObjectMap,
-			boolean isRequired,
-			Class componentType
-	)
-			throws ConfigParseException
-	{
-		if ( isRequired || configObjectMap.containsKey( name ) )
-		{
-			Object[] values = ( Object[] ) configObjectMap.get( name );
-
-			Object array = Array.newInstance( componentType, values.length );
-
-			for ( int i = 0; i < values.length; i += 1 )
-			{
-				/*
-				if ( ! ( values[ i ] instanceof Map ) )
-				{
-					throw new ConfigParseException( ConfigParseException.Reason.ArrayComponentTypeException,
-							"Field: \'" + field.getName( ) + "\' is marked as array of type: \'" +
-									componentType.toString( ) + "\' but actual type of element number " +
-									String.valueOf( i ) + " is: \'" + values[ i ].getClass( ).toString( ) + "\'" );
-				}*/
-
-				if ( values[ i ] instanceof Map )
-				{
-					Map < String, Object > map = ( Map < String, Object > ) values[ i ];
-
-					Object component;
-
-					component = parseMapAfterValidation( componentType, map );
-
-					Array.set( array, i, component );
-				}
-				else if ( values[ i ].getClass( ).getClass( ).isArray( ) )
-				{
-					throw new ConfigParseException( ConfigParseException.Reason.ArrayComponentTypeException );
-				}
-				else
-				{
-					Array.set( array, i, values[ i ] );
-				}
-			}
-
-			setFieldValue( configObject, field.getName( ), array );
-/*
-			try
-			{
-				field.set( configObject, array );
-			}
-			catch ( IllegalAccessException e )
-			{
-				throw new ConfigParseException( ConfigParseException.Reason.IllegalAccessException, e );
-			}*/
-		}
-	}
-
-	private void setNestedParameter(
-			Field field,
-			Object parameterValue,
-			Object configObject
-	)
-			throws ConfigParseException
-	{
-		if ( ! ( parameterValue instanceof Map ) )
-		{
-			throw new ConfigParseException( ConfigParseException.Reason.FieldTypeException );
-		}
-
-		Map < String, Object > map = ( Map < String, Object > ) parameterValue;
-
-		Object nestedParameter = parseMapAfterValidation( field.getType( ), map );
-
-		setFieldValue( configObject, field.getName( ), nestedParameter );
+		return configMapParser.parseMap( configClass, configYamlObject, parent );
 	}
 }

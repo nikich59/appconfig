@@ -1,0 +1,24 @@
+{
+  "int": 45,
+  "string": "string",
+  "long": 34232,
+  "float": 432.3,
+  "nested": {
+	"name": "name",
+	"value": "value"
+  },
+  "nested_array": [
+	{
+	  "name": "first name",
+	  "value": "first value"
+	},
+	{
+	  "name": "second name",
+	  "value": "second value"
+	}
+  ],
+  "string_array": [
+	"first string",
+	"second string"
+  ]
+}

@@ -12,23 +12,30 @@ public class ConfigParseException extends Exception
 		FieldTypeException,
 		ArrayComponentTypeException,
 		RequiredFieldNotPresent,
-		IllegalAccessException
+		IllegalAccessException,
+		SourceParseException,
+		ClassNotFoundException,
+		NestedLinkedConfigException,
+		InitializationException
 	}
-
-	Reason reason;
 
 	public ConfigParseException( Reason reason )
 	{
-		this.reason = reason;
+		super( reason.toString() );
 	}
 
 	public ConfigParseException( Reason reason, Exception other )
 	{
-		super( other );
+		super( reason.toString(), other );
 	}
 
 	public ConfigParseException( Reason reason, String message )
 	{
-		super( message );
+		super( reason.toString() + ": " + message );
+	}
+
+	public ConfigParseException( Reason reason, String message, Exception other )
+	{
+		super( reason.toString() + ": " + message, other );
 	}
 }

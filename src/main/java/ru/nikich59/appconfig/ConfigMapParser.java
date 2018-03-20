@@ -18,7 +18,7 @@ import java.util.Objects;
  */
 public class ConfigMapParser
 {
-	private List < ClassLoader > classLoaders = new ArrayList <>( );
+	private List< ClassLoader > classLoaders = new ArrayList<>( );
 
 	private ConfigParser parent;
 
@@ -36,7 +36,8 @@ public class ConfigMapParser
 		classLoaders.add( classLoader );
 	}
 
-	Object parseMap( Class configClass, Map < String, Object > configObjectMap, Object parent )
+	Object parseMap( Class configClass, Map< String, Object > configObjectMap, Object parent,
+					 String pathFromParent )
 			throws ConfigParseException, ConfigValidationException
 	{
 		Objects.requireNonNull( configClass );
@@ -44,12 +45,12 @@ public class ConfigMapParser
 
 
 		ConfigValidator configValidator = new ConfigValidator( );
-		if ( ! configValidator.isConfigValid( configClass ) )
+		if ( !configValidator.isConfigValid( configClass ) )
 		{
 			throw new ConfigParseException( ConfigParseException.Reason.ValidationException );
 		}
 
-		return parseMapAfterValidation( configClass, configObjectMap, parent );
+		return parseMapAfterValidation( configClass, configObjectMap, parent, pathFromParent );
 	}
 
 	void addClassLoader( ClassLoader classLoader )
@@ -57,10 +58,10 @@ public class ConfigMapParser
 		classLoaders.add( classLoader );
 	}
 
-	private void initialize( Object configObject, Object parentConfig )
+	private void initialize( Object configObject, Object parentConfig, String pathFromParent )
 			throws IllegalAccessException, InvocationTargetException, ConfigParseException
 	{
-		setParent( configObject, parentConfig );
+		setParent( configObject, parentConfig, pathFromParent );
 
 		for ( Method method : configObject.getClass( ).getMethods( ) )
 		{
@@ -71,8 +72,8 @@ public class ConfigMapParser
 		}
 	}
 
-	private Object parseMapAfterValidation( Class configClass, Map < String, Object > configObjectMap,
-											Object parentConfig )
+	private Object parseMapAfterValidation( Class configClass, Map< String, Object > configObjectMap,
+											Object parentConfig, String pathFromParent )
 			throws ConfigParseException, ConfigValidationException
 	{
 		Object configObject;
@@ -88,14 +89,14 @@ public class ConfigMapParser
 
 		try
 		{
-			initialize( configObject, parentConfig );
+			initialize( configObject, parentConfig, pathFromParent );
 		}
 		catch ( IllegalAccessException | InvocationTargetException e )
 		{
 			throw new ConfigParseException( ConfigParseException.Reason.InitializationException );
 		}
 
-		List < Field > fields = new ArrayList <>( );
+		List< Field > fields = new ArrayList<>( );
 
 		for ( Field field : configClass.getDeclaredFields( ) )
 		{
@@ -107,7 +108,7 @@ public class ConfigMapParser
 
 		for ( Field field : configClass.getDeclaredFields( ) )
 		{
-			if ( ! field.isAnnotationPresent( BeforeParsing.class ) )
+			if ( !field.isAnnotationPresent( BeforeParsing.class ) )
 			{
 				fields.add( field );
 			}
@@ -121,7 +122,7 @@ public class ConfigMapParser
 		return configObject;
 	}
 
-	private void parseField( Field field, Object configObject, Map < String, Object > configObjectMap )
+	private void parseField( Field field, Object configObject, Map< String, Object > configObjectMap )
 			throws ConfigParseException, ConfigValidationException
 	{
 		boolean isFieldRequired = isFieldRequired( field, configObjectMap );
@@ -148,11 +149,11 @@ public class ConfigMapParser
 
 	private boolean isFieldRequired(
 			Field field,
-			Map < String, Object > configObjectMap
+			Map< String, Object > configObjectMap
 	)
 			throws ConfigParseException
 	{
-		if ( ! field.isAnnotationPresent( Required.class ) )
+		if ( !field.isAnnotationPresent( Required.class ) )
 		{
 			return false;
 		}
@@ -194,7 +195,7 @@ public class ConfigMapParser
 	private void parseParameter(
 			Field field,
 			Object configObject,
-			Map < String, Object > configObjectMap,
+			Map< String, Object > configObjectMap,
 			boolean isRequired
 	)
 			throws ConfigParseException, ConfigValidationException
@@ -218,7 +219,7 @@ public class ConfigMapParser
 
 			if ( Parameter.NestedSource.Internal.equals( parameter.nested( ) ) )
 			{
-				setNestedParameter( field, parameterValue, configObject );
+				setNestedParameter( field, parameterValue, configObject, parameter.name( ) );
 			}
 			else if ( Parameter.NestedSource.File.equals( parameter.nested( ) ) )
 			{
@@ -235,10 +236,16 @@ public class ConfigMapParser
 						filePath = parameterValue.toString( );
 					}
 
+					File nestedConfigFile = new File( filePath );
+
+					String pathFromParent = nestedConfigFile.getPath( );
+
 					Object nestedParameter =
-							parent.parseFile( field.getType( ), new File( filePath ), configObject );
+							parent.parseFile( field.getType( ), nestedConfigFile,
+									configObject, pathFromParent );
 
 					setFieldValue( configObject, field, nestedParameter );
+
 				}
 				catch ( IOException e )
 				{
@@ -293,6 +300,11 @@ public class ConfigMapParser
 				try
 				{
 					clazz = classLoader.loadClass( source.toString( ) );
+
+					if ( clazz != null )
+					{
+						break;
+					}
 				}
 				catch ( ClassNotFoundException e )
 				{
@@ -301,10 +313,11 @@ public class ConfigMapParser
 			}
 			if ( clazz == null )
 			{
-				throw new ConfigParseException( ConfigParseException.Reason.ClassNotFoundException );
+				throw new ConfigParseException( ConfigParseException.Reason.ClassNotFoundException,
+						source.toString( ) );
 			}
 
-			if ( ! parameter.superClass( ).isAssignableFrom( clazz ) )
+			if ( !parameter.superClass( ).isAssignableFrom( clazz ) )
 			{
 				throw new ConfigParseException( ConfigParseException.Reason.FieldTypeException );
 			}
@@ -346,7 +359,7 @@ public class ConfigMapParser
 	private void parseParameterArray(
 			Field field,
 			Object configObject,
-			Map < String, Object > configObjectMap,
+			Map< String, Object > configObjectMap,
 			boolean isRequired
 	)
 			throws ConfigParseException, ConfigValidationException
@@ -381,11 +394,11 @@ public class ConfigMapParser
 			{
 				if ( values[ i ] instanceof Map )
 				{
-					Map < String, Object > map = ( Map < String, Object > ) values[ i ];
+					Map< String, Object > map = ( Map< String, Object > ) values[ i ];
 
 					Object component;
 
-					component = parseMapAfterValidation( componentClass, map, configObject );
+					component = parseMapAfterValidation( componentClass, map, configObject, "" );
 
 					Array.set( array, i, component );
 				}
@@ -411,30 +424,38 @@ public class ConfigMapParser
 	private void setNestedParameter(
 			Field field,
 			Object parameterValue,
-			Object configObject
+			Object configObject,
+			String pathFromParent
 	)
 			throws ConfigParseException, ConfigValidationException
 	{
-		if ( ! ( parameterValue instanceof Map ) )
+		if ( !( parameterValue instanceof Map ) )
 		{
 			throw new ConfigParseException( ConfigParseException.Reason.FieldTypeException );
 		}
 
-		Map < String, Object > map = ( Map < String, Object > ) parameterValue;
+		Map< String, Object > map = ( Map< String, Object > ) parameterValue;
 
-		Object nestedParameter = parseMapAfterValidation( field.getType( ), map, configObject );
+		Object nestedParameter = parseMapAfterValidation( field.getType( ), map, configObject, pathFromParent );
 
 		setFieldValue( configObject, field, nestedParameter );
 	}
 
-	private void setParent( Object nestedConfig, Object parentConfig )
+	private void setParent( Object nestedConfig, Object parentConfig, String pathFromParent )
 			throws ConfigParseException
 	{
 		for ( Field parentField : nestedConfig.getClass( ).getDeclaredFields( ) )
 		{
 			if ( parentField.isAnnotationPresent( ParentConfig.class ) )
 			{
-				setFieldValue( nestedConfig, parentField, parentConfig );
+				if ( parentField.getType( ).equals( String.class ) )
+				{
+					setFieldValue( nestedConfig, parentField, pathFromParent );
+				}
+				else
+				{
+					setFieldValue( nestedConfig, parentField, parentConfig );
+				}
 			}
 		}
 	}

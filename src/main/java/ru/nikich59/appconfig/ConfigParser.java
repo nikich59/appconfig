@@ -26,7 +26,7 @@ public class ConfigParser
 
 	private ConfigMapParser configMapParser;
 
-	public ConfigParser( )
+	public ConfigParser()
 	{
 		configMapParser = new ConfigMapParser( this );
 	}
@@ -41,25 +41,31 @@ public class ConfigParser
 		configMapParser.addClassLoader( classLoader );
 	}
 
-	public Object parseMap( Class configClass, Map < String, Object > map )
+	public Object parseMap( Class configClass, Map< String, Object > map, String pathFromParent )
 			throws ConfigValidationException, ConfigParseException
 	{
-		return parseMap( configClass, map, null );
+		return parseMap( configClass, map, null, pathFromParent );
 	}
 
-	Object parseMap( Class configClass, Map < String, Object > map, Object parent )
+	Object parseMap( Class configClass, Map< String, Object > map, Object parent, String pathFromParent )
 			throws ConfigValidationException, ConfigParseException
 	{
-		return configMapParser.parseMap( configClass, map, parent );
+		return configMapParser.parseMap( configClass, map, parent, pathFromParent );
 	}
 
-	public Object parseFile( Class configClass, File file )
+	public < T > T parseFile( Class< T > configClass, File file )
 			throws IOException, ConfigValidationException, ConfigParseException
 	{
-		return parseFile( configClass, file, null );
+		return parseFile( configClass, file, "" );
 	}
 
-	Object parseFile( Class configClass, File file, Object parent )
+	public < T > T parseFile( Class< T > configClass, File file, String pathFromParent )
+			throws IOException, ConfigValidationException, ConfigParseException
+	{
+		return ( T ) parseFile( configClass, file, null, pathFromParent );
+	}
+
+	Object parseFile( Class configClass, File file, Object parent, String pathFromParent )
 			throws IOException, ConfigValidationException, ConfigParseException
 	{
 		String fileExtension = FilenameUtils.getExtension( file.getAbsolutePath( ) );
@@ -70,10 +76,10 @@ public class ConfigParser
 			{
 				case "yml":
 				case "yaml":
-					return parseConfig( configClass, fileReader, ConfigFormat.YAML, parent );
+					return parseConfig( configClass, fileReader, ConfigFormat.YAML, parent, pathFromParent );
 				case "json":
 				case "js":
-					return parseConfig( configClass, fileReader, ConfigFormat.JSON, parent );
+					return parseConfig( configClass, fileReader, ConfigFormat.JSON, parent, pathFromParent );
 			}
 		}
 
@@ -81,22 +87,26 @@ public class ConfigParser
 				"\' is not supported" );
 	}
 
-	Object parseFile( Class configClass, File file, ConfigFormat configFormat, Object parent )
+	Object parseFile( Class configClass, File file, ConfigFormat configFormat,
+					  Object parent, String pathFromParent )
 			throws IOException, ConfigValidationException, ConfigParseException
 	{
 		try ( FileReader fileReader = new FileReader( file ) )
 		{
-			return parseConfig( configClass, fileReader, configFormat, parent );
+			return parseConfig( configClass, fileReader, configFormat, parent, pathFromParent );
 		}
 	}
 
-	public Object parseConfig( Class configClass, Reader configReader, ConfigFormat configFormat, Object parent )
+	public Object parseConfig( Class configClass, Reader configReader, ConfigFormat configFormat,
+							   Object parent, String pathFromParent )
 			throws IOException, ConfigParseException, ConfigValidationException
 	{
-		return parseConfig( configClass, CharStreams.toString( configReader ), configFormat, parent );
+		return parseConfig( configClass, CharStreams.toString( configReader ), configFormat, parent,
+				pathFromParent );
 	}
 
-	public Object parseConfig( Class configClass, String configString, ConfigFormat configFormat, Object parent )
+	public Object parseConfig( Class configClass, String configString, ConfigFormat configFormat,
+							   Object parent, String pathFromParent )
 			throws ConfigValidationException, ConfigParseException
 	{
 		switch ( configFormat )
@@ -104,37 +114,37 @@ public class ConfigParser
 			case JSON:
 				try
 				{
-					return parseConfigJson( configClass, configString, parent );
+					return parseConfigJson( configClass, configString, parent, pathFromParent );
 				}
 				catch ( ParseException e )
 				{
 					throw new ConfigParseException( ConfigParseException.Reason.SourceParseException, e );
 				}
 			case YAML:
-				return parseConfigYaml( configClass, configString, parent );
+				return parseConfigYaml( configClass, configString, parent, pathFromParent );
 		}
 
 		throw new UnsupportedOperationException( "Format: \'" + configFormat.toString( ) +
 				"\' is not supported" );
 	}
 
-	public Object parseConfigJson( Class configClass, String configString, Object parent )
+	public Object parseConfigJson( Class configClass, String configString, Object parent, String pathFromParent )
 			throws ParseException, ConfigParseException, ConfigValidationException
 	{
 		JSONParser jsonParser = new JSONParser( );
 
 		JSONObject configJsonObject = ( JSONObject ) jsonParser.parse( configString );
 
-		return configMapParser.parseMap( configClass, configJsonObject, parent );
+		return configMapParser.parseMap( configClass, configJsonObject, parent, pathFromParent );
 	}
 
-	public Object parseConfigYaml( Class configClass, String configString, Object parent )
+	public Object parseConfigYaml( Class configClass, String configString, Object parent, String pathFromParent )
 			throws ConfigParseException, ConfigValidationException
 	{
 		Yaml yaml = new Yaml( );
 
-		Map < String, Object > configYamlObject = yaml.load( configString );
+		Map< String, Object > configYamlObject = yaml.load( configString );
 
-		return configMapParser.parseMap( configClass, configYamlObject, parent );
+		return configMapParser.parseMap( configClass, configYamlObject, parent, pathFromParent );
 	}
 }

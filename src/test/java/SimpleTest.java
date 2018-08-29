@@ -113,7 +113,7 @@ public class SimpleTest
 
 		ConfigParser configParser = new ConfigParser( classLoader );
 
-		TestConfig testConfig = ( TestConfig ) configParser.parseMap( TestConfig.class, map );
+		TestConfig testConfig = ( TestConfig ) configParser.parseMap( TestConfig.class, map, "" );
 
 		System.out.println( "\n   ---   Map test:" );
 

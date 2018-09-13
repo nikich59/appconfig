@@ -57,7 +57,8 @@ public class ConfigWriterJSON
 
 				for ( Object o : values )
 				{
-					if ( o.getClass( ).isPrimitive( ) || o.getClass( ).equals( String.class ) )
+					if ( o.getClass( ).isPrimitive( ) || o.getClass( ).equals( String.class ) ||
+							o.getClass( ).equals( Integer.class ) )
 					{
 						jsonArray.add( o );
 					}

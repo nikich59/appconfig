@@ -1,0 +1,27 @@
+{
+  "string": "STRINGGG",
+  "string_array": [
+	{},
+	{}
+  ],
+  "float": 1.0,
+  "nested": {
+	"name": "NAMEEEEE",
+	"value": "VALUEEEEEE"
+  },
+  "class": class
+  java.lang.String,
+  "nested_file": TestConfigNested@5674cd4d,
+  "int": 2,
+  "long": 4,
+  "nested_array": [
+	{
+	  "name": "NAMEEEEE",
+	  "value": "VALUEEEEEE"
+	},
+	{
+	  "name": "NAMEEEEE",
+	  "value": "VALUEEEEEE"
+	}
+  ]
+}
